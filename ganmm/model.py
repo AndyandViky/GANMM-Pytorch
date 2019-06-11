@@ -45,30 +45,31 @@ class Reshape(nn.Module):
 
 class Generator(nn.Module):
 
-    def __init__(self, dim=64, x_shape=(1, 32, 32), verbose=False):
+    def __init__(self, latent_dim=50, x_shape=(1, 28, 28), verbose=False):
         super(Generator, self).__init__()
 
-        self.dim = dim
-        self.ishap = (4 * self.dim, 4, 4)
+        self.latent_dim = latent_dim
+        self.ishape = (128, 7, 7)
+        self.iels = int(np.prod(self.ishape))
         self.x_shape = x_shape
         self.verbose = verbose
 
         self.model = nn.Sequential(
-            nn.Linear(128, self.dim * 4 * 4 * 4),
-            nn.BatchNorm1d(self.dim * 4 * 4 * 4),
+            nn.Linear(self.latent_dim, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(True),
+
+            nn.Linear(1024, self.iels),
+            nn.BatchNorm1d(self.iels),
             nn.ReLU(True),
             #
-            Reshape(self.ishap),
+            Reshape(self.ishape),
             #
-            nn.ConvTranspose2d(4 * self.dim, 2 * self.dim, 4, stride=2, padding=1),
-            nn.BatchNorm2d(2 * self.dim),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(True),
             #
-            nn.ConvTranspose2d(2 * self.dim, self.dim, 4, stride=2, padding=1),
-            nn.BatchNorm2d(self.dim),
-            nn.ReLU(True),
-            #
-            nn.ConvTranspose2d(self.dim, 1, 4, stride=2, padding=1),
+            nn.ConvTranspose2d(64, 1, 4, stride=2, padding=1),
             nn.Sigmoid(),
         )
 
@@ -79,55 +80,94 @@ class Generator(nn.Module):
 
     def forward(self, x):
         gen_img = self.model(x)
-        print(gen_img.size())
+        # print(gen_img.size())
         return gen_img.view(x.size(0), *self.x_shape)
 
 
-from torchvision.utils import save_image
-input = 0.75*torch.randn(128, 128)
-ge = Generator()
-gen_img = ge(input)
-print(gen_img)
-save_image(gen_img.data[:25],
-                   '../gen_%06i.png' %(1),
-                   nrow=5, normalize=True)
+# from torchvision.utils import save_image
+# n_sample = 50
+# latent_dim = 50
+# input = 0.75*torch.randn(n_sample, latent_dim)
+# ge = Generator()
+# gen_imgs = ge(input)
+# save_image(gen_imgs.data[:25],
+#                    '../gen_%06i.png' %(1),
+#                    nrow=5, normalize=True)
 
 
 class Discriminator(nn.Module):
 
-    def __int__(self, dim=64, feature_dim=784, verbose=False):
+    def __init__(self, verbose=False, n_cluster=10):
         super(Discriminator, self).__init__()
 
-        self.dim = dim
-        self.feature_dim = feature_dim
+        self.channels = 1
+        self.n_cluster = n_cluster
+        self.cshape = (128, 7, 7)
+        self.iels = int(np.prod(self.cshape))
+        self.lshape = (self.iels,)
         self.verbose = verbose
 
         self.model = nn.Sequential(
+            nn.Conv2d(self.channels, 64, 4, stride=2, padding=1),
+            nn.ReLU(True),
 
+            nn.Conv2d(64, 128, 4, stride=2, padding=1),
+            nn.ReLU(True),
+
+            Reshape(self.lshape),
+
+            nn.Linear(self.iels, 1024),
+            nn.ReLU(True),
+
+            nn.Linear(1024, 1),
         )
 
         if self.verbose:
             print(self.model)
 
-    def forward(self, x):
-        valid = self.model(x)
+    def forward(self, img):
+        valid = self.model(img)
+        print(valid)
         return valid
+
+#
+# di = Discriminator()
+# output = di(gen_imgs)
 
 
 class Classifier(nn.Module):
-    def __int__(self, dim=64, feature_dim=784, verbose=False):
+    def __init__(self, n_cluster=10, verbose=False):
         super(Classifier, self).__init__()
 
-        self.dim = dim
-        self.feature_dim = feature_dim
+        self.channels = 1
+        self.cshape = (128, 7, 7)
+        self.iels = int(np.prod(self.cshape))
+        self.lshape = (self.iels,)
+        self.n_cluster = n_cluster
         self.verbose = verbose
 
         self.model = nn.Sequential(
+            nn.Conv2d(self.channels, 64, 4, stride=2, padding=1),
+            nn.ReLU(True),
 
+            nn.Conv2d(64, 128, 4, stride=2, padding=1),
+            nn.ReLU(True),
+
+            Reshape(self.lshape),
+
+            nn.Linear(self.iels, self.n_cluster),
+            nn.Softmax()
         )
 
         if self.verbose:
             print(self.model)
 
     def forward(self, x):
-        pass
+        # 输入 x 为 [n_sample, 1, 28, 28]
+        result = self.model(x)
+        return result
+
+
+# cl = Classifier()
+# cls = cl(gen_imgs)
+# print(cls)
