@@ -1,2 +1,4 @@
 datasets/
 .idea
+ganmm/__pycache__
+ganmm/runs

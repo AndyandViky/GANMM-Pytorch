@@ -85,11 +85,17 @@ class Generator(nn.Module):
 
 
 # from torchvision.utils import save_image
-# n_sample = 50
-# latent_dim = 50
-# input = 0.75*torch.randn(n_sample, latent_dim)
-# ge = Generator()
-# gen_imgs = ge(input)
+from tensorboardX import SummaryWriter
+
+n_sample = 50
+latent_dim = 50
+input = 0.75*torch.randn(n_sample, latent_dim)
+ge = Generator()
+gen_imgs = ge(input)
+
+with SummaryWriter(comment='Generator') as w:
+    w.add_graph(ge, input)
+
 # save_image(gen_imgs.data[:25],
 #                    '../gen_%06i.png' %(1),
 #                    nrow=5, normalize=True)
