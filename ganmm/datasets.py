@@ -42,21 +42,19 @@ def _spilit_mnistdata(dataset_path='../datasets/mnist', dataset_name='mnist', tr
     result = dataset(dataset_path, download=True, train=train, transform=transforms.Compose([
         transforms.ToTensor()
     ]))
-    datas = result.data
-
-    # 均匀划分到 n_cluster 个 cluster
-    epoch_size = int(datas.size(0) / n_cluster)
-    def getEpoch(num):
-        """
-        获取单个 epoch 的数据
-        :param num:
-        :return: epoch data
-        """
-        return datas[int(num * epoch_size): int((num+1) * epoch_size)]
 
     s_datas = []
+    epoch_size = int(result.data.size(0) / n_cluster)
+    lengths = []
     for i in range(n_cluster):
-        s_datas.append(getEpoch(i))
+        if i != n_cluster-1:
+            lengths.append(epoch_size)
+        else:
+            lengths.append(
+                result.data.size(0) - (n_cluster-1) * epoch_size
+            )
+
+    s_datas = torch.utils.data.random_split(result, lengths)
 
     return s_datas
 
@@ -74,9 +72,9 @@ def _get_dataloader(dataset, batch_size=50):
 # 获取全部的dataloader
 def get_dataloaders(dataset_path='../datasets/mnist',
                     dataset_name='mnist', train=True, n_cluster=10, batch_size=50):
-    s_dataloader = []
     s_datas = _spilit_mnistdata(dataset_path=dataset_path, dataset_name=dataset_name, train=train, n_cluster=n_cluster)
 
+    s_dataloader = []
     for item in s_datas:
         s_dataloader.append(_get_dataloader(dataset=item, batch_size=batch_size))
 

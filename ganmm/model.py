@@ -73,7 +73,7 @@ class Generator(nn.Module):
             nn.Sigmoid(),
         )
 
-        init_weights(self)
+        # init_weights(self)
 
         if self.verbose:
             print(self.model)
@@ -114,15 +114,15 @@ class Discriminator(nn.Module):
 
         self.model = nn.Sequential(
             nn.Conv2d(self.channels, 64, 4, stride=2, padding=1),
-            nn.ReLU(True),
+            nn.LeakyReLU(0.02, inplace=True),
 
             nn.Conv2d(64, 128, 4, stride=2, padding=1),
-            nn.ReLU(True),
+            nn.LeakyReLU(0.02, inplace=True),
 
             Reshape(self.lshape),
 
             nn.Linear(self.iels, 1024),
-            nn.ReLU(True),
+            nn.LeakyReLU(0.02, inplace=True),
 
             nn.Linear(1024, 1),
         )
@@ -132,7 +132,7 @@ class Discriminator(nn.Module):
 
     def forward(self, img):
         valid = self.model(img)
-        print(valid)
+        valid = self.model(img)
         return valid
 
 #
