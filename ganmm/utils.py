@@ -68,3 +68,19 @@ def calc_gradient_penalty(netD, real_data, generated_data):
 
     # Return gradient penalty
     return LAMBDA * ((gradients_norm - 1) ** 2).mean()
+
+
+def get_fake_imgs(netG, n_cluster, n_sample, latent_dim, G_params):
+
+    gen_imgs = []
+    for i in range(n_cluster):
+
+        netG.load_state_dict(G_params[i])
+        input = 0.75 * torch.randn(n_sample, latent_dim)
+        gen_imgs.append(netG(input))
+
+    return gen_imgs
+
+
+def softmax_cross_entropy_with_logits(labels, logits):
+    pass

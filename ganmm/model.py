@@ -164,6 +164,8 @@ class Classifier(nn.Module):
             nn.Softmax()
         )
 
+        init_weights(self)
+
         if self.verbose:
             print(self.model)
 
