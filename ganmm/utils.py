@@ -29,8 +29,3 @@ def init_weights(net):
         elif isinstance(m, nn.Linear):
             m.weight.data.normal_(0, 0.02)
             m.bias.data.zero_()
-
-
-# 均匀划分全部数据
-def spilit_mnistdata(data):
-    pass

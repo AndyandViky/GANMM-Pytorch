@@ -25,7 +25,7 @@ DATASET_FN_DICT = {'mnist': dset.MNIST}
 dataset_list = DATASET_FN_DICT.keys()
 
 
-def get_dataset(dataset_name='mnist'):
+def _get_dataset(dataset_name='mnist'):
 
     if dataset_name in DATASET_FN_DICT:
         return DATASET_FN_DICT[dataset_name]
@@ -34,14 +34,50 @@ def get_dataset(dataset_name='mnist'):
                          'in {}'.format(dataset_name, dataset_list))
 
 
-def get_dataloader(dataset_path='../datasets/mnist', dataset_name='mnist', batch_size=50, train=True):
+# 均匀划分全部数据
+def _spilit_mnistdata(dataset_path='../datasets/mnist', dataset_name='mnist', train=True, n_cluster=10):
+    dataset = _get_dataset(dataset_name)
 
-    dataset = get_dataset(dataset_name)
+    # get 60000 data
+    result = dataset(dataset_path, download=True, train=train, transform=transforms.Compose([
+        transforms.ToTensor()
+    ]))
+    datas = result.data
+
+    # 均匀划分到 n_cluster 个 cluster
+    epoch_size = int(datas.size(0) / n_cluster)
+    def getEpoch(num):
+        """
+        获取单个 epoch 的数据
+        :param num:
+        :return: epoch data
+        """
+        return datas[int(num * epoch_size): int((num+1) * epoch_size)]
+
+    s_datas = []
+    for i in range(n_cluster):
+        s_datas.append(getEpoch(i))
+
+    return s_datas
+
+
+# 获取单个dataloader
+def _get_dataloader(dataset, batch_size=50):
 
     dataloader = torch.utils.data.DataLoader(
-        dataset(dataset_path, download=True, train=train, transform=transforms.Compose([
-            transforms.ToTensor()
-        ])),
+        dataset,
         batch_size=batch_size, shuffle=True
     )
     return dataloader
+
+
+# 获取全部的dataloader
+def get_dataloaders(dataset_path='../datasets/mnist',
+                    dataset_name='mnist', train=True, n_cluster=10, batch_size=50):
+    s_dataloader = []
+    s_datas = _spilit_mnistdata(dataset_path=dataset_path, dataset_name=dataset_name, train=train, n_cluster=n_cluster)
+
+    for item in s_datas:
+        s_dataloader.append(_get_dataloader(dataset=item, batch_size=batch_size))
+
+    return s_dataloader
