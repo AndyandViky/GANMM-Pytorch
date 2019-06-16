@@ -79,3 +79,19 @@ def get_dataloaders(dataset_path='../datasets/mnist',
         s_dataloader.append(_get_dataloader(dataset=item, batch_size=batch_size))
 
     return s_dataloader
+
+
+# 获取整个数据集的 loader
+def get_full_data_loader(dataset_path='../datasets/mnist',
+                    dataset_name='mnist', train=True, batch_size=50):
+    dataset = _get_dataset(dataset_name)
+
+    loader = torch.utils.data.DataLoader(
+        dataset(dataset_path, download=True, train=train, transform=transforms.Compose([
+            transforms.ToTensor()
+        ])),
+        batch_size=batch_size,
+        shuffle=True
+    )
+
+    return loader

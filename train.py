@@ -17,12 +17,11 @@ try:
     import torch.nn as nn
     from torchvision.utils import save_image
     import numpy as np
-    from ganmm.datasets import dataset_list
+    from ganmm.datasets import dataset_list, get_full_data_loader, get_dataloaders
     from ganmm.definitions import RUNS_DIR, DATASETS_DIR
     from ganmm.model import Generator, Discriminator, Classifier
-    from ganmm.datasets import get_dataloaders
     from ganmm.utils import calc_gradient_penalty, init_weights, get_fake_imgs, \
-        softmax_cross_entropy_with_logits
+        softmax_cross_entropy_with_logits, sample_realimages
 except ImportError as e:
     print(e)
     raise ImportError
@@ -72,7 +71,7 @@ def main():
     b1 = 0.5
     b2 = 0.9  # 99
     decay = 2.5 * 1e-5
-    load_pre_params = False
+    load_pre_params = True
 
     # test detail var
     test_batch_size = 5000
@@ -96,6 +95,8 @@ def main():
                                   train=pre_train, n_cluster=n_cluster, batch_size=batch_size)
     testdatas = get_dataloaders(dataset_path=data_dir, dataset_name=dataset_name,
                                   train=False, n_cluster=n_cluster, batch_size=test_batch_size)
+    fulldataloader = get_full_data_loader(dataset_path=data_dir, dataset_name=dataset_name,
+                                          train=pre_train, batch_size=batch_size)
 
     # loss
     gen_cost = [0.0 for i in range(10)]
@@ -132,7 +133,7 @@ def main():
             print('start {}'.format(model_index))
             init_weights(generator)
             init_weights(discriminator)
-            for iter in range(30):
+            for iter in range(5):
                 for i, (real_imgs, target) in enumerate(dataloaders[model_index]):
                     if i == n_pre_train:
                         break
@@ -175,16 +176,60 @@ def main():
     for epoch in range(n_epochs):
         # train classifier
         for cls_iter in range(0, 1):
-            fake_imgs = get_fake_imgs(generator, n_cluster, n_sample, latent_dim, gen_params)
+            fake_imgs = get_fake_imgs(netG=generator, n_cluster=n_cluster, \
+                                      n_sample=n_sample, latent_dim=latent_dim, G_params=gen_params)
 
             for model_index in range(n_cluster):
                 classifier.zero_grad()
-                cls_target = np.zeros([batch_size, n_cluster])
-                cls_target[:, i] = 1
+                cls_target = torch.zeros([batch_size, n_cluster])
+                cls_target[:, model_index] = 1
+                logits = classifier(fake_imgs[model_index])
                 cls_cost = torch.mean(softmax_cross_entropy_with_logits(labels=cls_target,
-                                                                        logits=classifier(fake_imgs[i])))
-                cls_cost.backword(retain_graph=True)
+                                                                        logits=logits))
+                # cls_cost.to(device)
+                cls_cost.backward(retain_graph=True)
                 classifier_op.step()
+
+        if epoch < 500:
+            num_choose = 25
+        elif epoch < 1000:
+            num_choose = 40
+        elif epoch < 2000:
+            num_choose = 45
+        else:
+            num_choose = 48
+
+        for model_index in range(n_cluster):
+            init_weights(generator)
+            init_weights(discriminator)
+            generator.load_state_dict(gen_params[model_index])
+            discriminator.load_state_dict(disc_params[model_index])
+
+            generator.zero_grad()
+            discriminator.zero_grad()
+            gen_train_op[model_index].zero_grad()
+
+            input = 0.75 * torch.randn(n_sample, latent_dim)
+            gen_imgs = generator(input.to(device))
+
+            D_gen = discriminator(gen_imgs)
+
+            real_imgs = sample_realimages(datasets=fulldataloader, model_index=model_index,
+                                          num_choose=num_choose, batch_size=batch_size)
+            real_imgs.to(device)
+
+            disc_train_op[model_index].zero_grad()
+            D_real = discriminator(real_imgs)
+            # train discriminator
+            disc_cost[model_index] = torch.mean(D_real) - torch.mean(D_gen) + \
+                                     calc_gradient_penalty(discriminator, real_imgs, gen_imgs)
+            disc_cost[model_index].backward(retain_graph=True)
+            disc_train_op[model_index].step()
+
+            # train generator
+            gen_cost[model_index] = torch.mean(D_real)
+            gen_cost[model_index].backward()
+            gen_train_op[model_index].step()
 
 
 if __name__ == '__main__':

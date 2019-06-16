@@ -13,7 +13,9 @@ try:
     import torch
     from torch.autograd import Variable
     from torch.autograd import grad as torch_grad
+    import torch.nn.functional as F
     import torch.nn as nn
+    from torchvision.utils import save_image
 
 except ImportError as e:
     print(e)
@@ -74,13 +76,31 @@ def get_fake_imgs(netG, n_cluster, n_sample, latent_dim, G_params):
 
     gen_imgs = []
     for i in range(n_cluster):
+        init_weights(netG)
+
+        input = 0.75 * torch.randn(n_sample, latent_dim)
+        # input.to(torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'))
 
         netG.load_state_dict(G_params[i])
-        input = 0.75 * torch.randn(n_sample, latent_dim)
-        gen_imgs.append(netG(input))
-
+        gen_imgs.append(netG(input.cuda()))
     return gen_imgs
 
 
-def softmax_cross_entropy_with_logits(labels, logits):
-    pass
+def softmax_cross_entropy_with_logits(labels, logits, dim=-1):
+
+    loss = torch.sum(- labels.cuda() * F.log_softmax(logits, -1), -1)
+    return loss
+
+
+def save_images(gen_imgs, imags_path, images_name):
+    save_image(gen_imgs.data[:25],
+               '%s/%s.png' % (imags_path, images_name),
+               nrow=5, normalize=True)
+
+
+def sample_realimages(datasets, model_index, num_choose, batch_size=60):
+    '''
+    动态从全体数据中筛选某一领域的真实数据
+    :return: images
+    '''
+
