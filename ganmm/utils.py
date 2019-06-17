@@ -11,6 +11,7 @@
 
 try:
     import torch
+    import numpy as np
     from torch.autograd import Variable
     from torch.autograd import grad as torch_grad
     import torch.nn.functional as F
@@ -98,9 +99,65 @@ def save_images(gen_imgs, imags_path, images_name):
                nrow=5, normalize=True)
 
 
-def sample_realimages(datasets, model_index, num_choose, batch_size=60):
+def sample_realimages(datasets, classifier, model_index, num_choose, batch_size=60, feature_dim=[1, 1, 28, 28]):
     '''
     动态从全体数据中筛选某一领域的真实数据
     :return: images
     '''
+    _chosen_data = []
+    _rest_data = []
+    _rest_data_proba = []
+    for i, (_data, _targets) in enumerate(datasets):
+        _proba = classifier(_data.cuda())
+        _data = _data.numpy()
+        _proba = _proba.detach().cpu().numpy()
+        # record choosen data
+        tmp = []
+        idx = np.argmax(_proba, axis=1)
+        if (idx == model_index).any():
+            tmp = _data[idx == model_index, :]
+        else:
+            idx = np.argmax(_proba, axis=0)
+            tmp = _data[idx[model_index], :]
+            tmp = tmp.reshape(feature_dim)
+        if len(_chosen_data):
+            _chosen_data = np.vstack((_chosen_data, tmp))
+        else:
+            _chosen_data = tmp
+        # record rest data
+        tmp = []
+        idx = np.argmax(_proba, axis=1)
+        if (idx != model_index).any():
+            tmp = _data[idx != model_index, :]
+            tmp_proba = _proba[idx != model_index, :]
+        else:
+            idx = np.argmin(_proba, axis=0)
+            tmp = _data[idx[model_index], :]
+            tmp = tmp.reshape(feature_dim)
+            tmp_proba = _proba[idx[model_index], :]
+        if len(_rest_data):
+            _rest_data = np.vstack((_rest_data, tmp))
+        else:
+            _rest_data = tmp
+        if len(_rest_data_proba):
+            _rest_data_proba = np.vstack((_rest_data_proba, tmp_proba))
+        else:
+            _rest_data_proba = tmp_proba
+
+        if _chosen_data.shape[0] >= num_choose and _rest_data.shape[0] >= batch_size - num_choose:
+            break
+
+    _chosen_data = np.vstack((_chosen_data[0:num_choose, :],
+                              sample_restdata(_rest_data, _rest_data_proba, model_index,
+                                                  batch_size - num_choose)))
+
+    return torch.from_numpy(_chosen_data)
+
+
+def sample_restdata(rest_data, rest_data_proba, model_index, size):
+    P = rest_data_proba[:, model_index]
+    P = P / P.sum()
+    sample_idx = np.random.choice(len(P), size, replace=False, p=P)
+
+    return rest_data[sample_idx, :]
 

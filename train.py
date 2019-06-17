@@ -21,7 +21,7 @@ try:
     from ganmm.definitions import RUNS_DIR, DATASETS_DIR
     from ganmm.model import Generator, Discriminator, Classifier
     from ganmm.utils import calc_gradient_penalty, init_weights, get_fake_imgs, \
-        softmax_cross_entropy_with_logits, sample_realimages
+        softmax_cross_entropy_with_logits, sample_realimages, save_images
 except ImportError as e:
     print(e)
     raise ImportError
@@ -214,9 +214,14 @@ def main():
 
             D_gen = discriminator(gen_imgs)
 
-            real_imgs = sample_realimages(datasets=fulldataloader, model_index=model_index,
+            real_imgs = sample_realimages(datasets=fulldataloader, classifier=classifier, model_index=model_index,
                                           num_choose=num_choose, batch_size=batch_size)
-            real_imgs.to(device)
+
+            real_imgs = real_imgs.to(device)
+
+            if (epoch+1) % 1000 == 0:
+                print('training.....%d' % epoch)
+                save_images(real_imgs, imgs_dir, 'cls_test_%d_%d' % (model_index, epoch))
 
             disc_train_op[model_index].zero_grad()
             D_real = discriminator(real_imgs)
