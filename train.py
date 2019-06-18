@@ -113,6 +113,7 @@ def main():
     for i in range(n_cluster):
         gen_train_op.append(torch.optim.Adam(generator.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay))
         disc_train_op.append(torch.optim.Adam(discriminator.parameters(), lr=lr, betas=(b1, b2)))
+    # classifier_op = torch.optim.SGD(classifier.parameters(), lr=0.001, momentum=0.9)
     classifier_op = torch.optim.Adam(classifier.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
 
     # ==== pretrain ====
@@ -192,8 +193,10 @@ def main():
             cls_cost = [0.0] * 10
             for model_index in range(n_cluster):
                 classifier.zero_grad()
-                cls_target = torch.zeros([batch_size, n_cluster])
-                cls_target[:, model_index] = 1
+                # cls_target = torch.zeros([batch_size, n_cluster])
+                # cls_target[:, model_index] = 1
+                cls_target = torch.zeros(batch_size)
+                cls_target = cls_target + model_index
                 logits = classifier(fake_imgs[model_index])
                 cls_cost[model_index] = torch.mean(softmax_cross_entropy_with_logits(labels=cls_target,
                                                                         logits=logits))

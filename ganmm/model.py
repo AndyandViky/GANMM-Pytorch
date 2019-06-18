@@ -160,7 +160,10 @@ class Classifier(nn.Module):
 
             Reshape(self.lshape),
 
-            nn.Linear(self.iels, self.n_cluster),
+            nn.Linear(self.iels, 1024),
+            nn.ReLU(True),
+
+            nn.Linear(1024, self.n_cluster),
             nn.Softmax()
         )
 

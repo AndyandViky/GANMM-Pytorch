@@ -89,10 +89,10 @@ def get_fake_imgs(netG, n_cluster, n_sample, latent_dim, G_params):
 
 def softmax_cross_entropy_with_logits(labels, logits, dim=-1):
 
-    # loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
-    # return loss_fn(logits, labels.cuda().type(torch.cuda.LongTensor))
-    loss = torch.sum(- labels.cuda() * F.log_softmax(logits, -1), -1)
-    return loss
+    loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
+    return loss_fn(logits, labels.cuda().type(torch.cuda.LongTensor))
+    # loss = torch.sum(- labels.cuda() * F.log_softmax(logits, -1), -1)
+    # return loss
 
 
 def save_images(gen_imgs, imags_path, images_name):
@@ -163,3 +163,12 @@ def sample_restdata(rest_data, rest_data_proba, model_index, size):
 
     return rest_data[sample_idx, :]
 
+
+# criterion = nn.CrossEntropyLoss()
+#
+# output = Variable(torch.randn(10, 120).float())
+# target = Variable(torch.FloatTensor(10).uniform_(0, 120).long())
+#
+# loss = criterion(output, target)
+#
+# print(loss)
