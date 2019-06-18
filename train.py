@@ -31,7 +31,7 @@ def main():
     global args
     parser = argparse.ArgumentParser(description="Convolutional NN Training Script")
     parser.add_argument("-r", "--run_name", dest="run_name", default="ganmm", help="Name of training run")
-    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=200000, type=int, help="Number of epochs")
+    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=3000, type=int, help="Number of epochs")
     parser.add_argument("-b", "--batch_size", dest="batch_size", default=60, type=int, help="Batch size")
     parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='mnist', choices=dataset_list,
                         help="Dataset name")
@@ -174,21 +174,6 @@ def main():
 
     print('EM-train......')
     for epoch in range(n_epochs):
-        # train classifier
-        for cls_iter in range(0, 1):
-            fake_imgs = get_fake_imgs(netG=generator, n_cluster=n_cluster, \
-                                      n_sample=n_sample, latent_dim=latent_dim, G_params=gen_params)
-
-            for model_index in range(n_cluster):
-                classifier.zero_grad()
-                cls_target = torch.zeros([batch_size, n_cluster])
-                cls_target[:, model_index] = 1
-                logits = classifier(fake_imgs[model_index])
-                cls_cost = torch.mean(softmax_cross_entropy_with_logits(labels=cls_target,
-                                                                        logits=logits))
-                # cls_cost.to(device)
-                cls_cost.backward(retain_graph=True)
-                classifier_op.step()
 
         if epoch < 500:
             num_choose = 25
@@ -198,6 +183,31 @@ def main():
             num_choose = 45
         else:
             num_choose = 48
+
+        # train classifier
+        for cls_iter in range(0, 1):
+            fake_imgs = get_fake_imgs(netG=generator, n_cluster=n_cluster, \
+                                      n_sample=n_sample, latent_dim=latent_dim, G_params=gen_params)
+
+            cls_cost = [0.0] * 10
+            for model_index in range(n_cluster):
+                classifier.zero_grad()
+                cls_target = torch.zeros([batch_size, n_cluster])
+                cls_target[:, model_index] = 1
+                logits = classifier(fake_imgs[model_index])
+                cls_cost[model_index] = torch.mean(softmax_cross_entropy_with_logits(labels=cls_target,
+                                                                        logits=logits))
+                # cls_cost.to(device)
+                cls_cost[model_index].backward(retain_graph=True)
+                classifier_op.step()
+
+        if (epoch+1) % 50 == 0:
+            for i in range(n_cluster):
+                for j in range(2):
+                    real_imgs = sample_realimages(datasets=fulldataloader, classifier=classifier,
+                                                  model_index=i,num_choose=num_choose, batch_size=batch_size)
+                    real_imgs = real_imgs.to(device)
+                    save_images(real_imgs, imgs_dir, '%d_%d_cls_test' % (epoch, i))
 
         for model_index in range(n_cluster):
             init_weights(generator)
@@ -219,10 +229,6 @@ def main():
 
             real_imgs = real_imgs.to(device)
 
-            if (epoch+1) % 1000 == 0:
-                print('training.....%d' % epoch)
-                save_images(real_imgs, imgs_dir, 'cls_test_%d_%d' % (model_index, epoch))
-
             disc_train_op[model_index].zero_grad()
             D_real = discriminator(real_imgs)
             # train discriminator
@@ -230,11 +236,13 @@ def main():
                                      calc_gradient_penalty(discriminator, real_imgs, gen_imgs)
             disc_cost[model_index].backward(retain_graph=True)
             disc_train_op[model_index].step()
+            disc_params[model_index] = discriminator.state_dict()
 
             # train generator
             gen_cost[model_index] = torch.mean(D_real)
             gen_cost[model_index].backward()
             gen_train_op[model_index].step()
+            gen_params[model_index] = generator.state_dict()
 
 
 if __name__ == '__main__':

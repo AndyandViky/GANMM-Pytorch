@@ -89,6 +89,8 @@ def get_fake_imgs(netG, n_cluster, n_sample, latent_dim, G_params):
 
 def softmax_cross_entropy_with_logits(labels, logits, dim=-1):
 
+    # loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
+    # return loss_fn(logits, labels.cuda().type(torch.cuda.LongTensor))
     loss = torch.sum(- labels.cuda() * F.log_softmax(logits, -1), -1)
     return loss
 
