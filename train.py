@@ -21,7 +21,7 @@ try:
     from ganmm.definitions import RUNS_DIR, DATASETS_DIR
     from ganmm.model import Generator, Discriminator, Classifier
     from ganmm.utils import calc_gradient_penalty, init_weights, get_fake_imgs, \
-        softmax_cross_entropy_with_logits, sample_realimages, save_images
+        softmax_cross_entropy_with_logits, sample_realimages, save_images, get_performance
 except ImportError as e:
     print(e)
     raise ImportError
@@ -31,7 +31,7 @@ def main():
     global args
     parser = argparse.ArgumentParser(description="Convolutional NN Training Script")
     parser.add_argument("-r", "--run_name", dest="run_name", default="ganmm", help="Name of training run")
-    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=3000, type=int, help="Number of epochs")
+    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=200000, type=int, help="Number of epochs")
     parser.add_argument("-b", "--batch_size", dest="batch_size", default=60, type=int, help="Batch size")
     parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='mnist', choices=dataset_list,
                         help="Dataset name")
@@ -45,11 +45,13 @@ def main():
     data_dir = os.path.join(DATASETS_DIR, dataset_name)
     imgs_dir = os.path.join(run_dir, 'images')
     models_dir = os.path.join(run_dir, 'models')
+    log_path = os.path.join(run_dir, 'logs')
 
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(run_dir, exist_ok=True)
     os.makedirs(imgs_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(log_path, exist_ok=True)
 
     # -----train-----
     """
@@ -74,7 +76,7 @@ def main():
     load_pre_params = True
 
     # test detail var
-    test_batch_size = 5000
+    test_batch_size = 2500
 
     cuda = True if torch.cuda.is_available() else False
 
@@ -93,8 +95,8 @@ def main():
 
     dataloaders = get_dataloaders(dataset_path=data_dir, dataset_name=dataset_name,
                                   train=pre_train, n_cluster=n_cluster, batch_size=batch_size)
-    testdatas = get_dataloaders(dataset_path=data_dir, dataset_name=dataset_name,
-                                  train=False, n_cluster=n_cluster, batch_size=test_batch_size)
+    testdatas = get_full_data_loader(dataset_path=data_dir, dataset_name=dataset_name,
+                                  train=False, batch_size=test_batch_size)
     fulldataloader = get_full_data_loader(dataset_path=data_dir, dataset_name=dataset_name,
                                           train=pre_train, batch_size=batch_size)
 
@@ -134,7 +136,7 @@ def main():
             print('start {}'.format(model_index))
             init_weights(generator)
             init_weights(discriminator)
-            for iter in range(5):
+            for it in range(5):
                 for i, (real_imgs, target) in enumerate(dataloaders[model_index]):
                     if i == n_pre_train:
                         break
@@ -204,14 +206,6 @@ def main():
                 cls_cost[model_index].backward(retain_graph=True)
                 classifier_op.step()
 
-        if (epoch+1) % 50 == 0:
-            for i in range(n_cluster):
-                for j in range(2):
-                    real_imgs = sample_realimages(datasets=fulldataloader, classifier=classifier,
-                                                  model_index=i,num_choose=num_choose, batch_size=batch_size)
-                    real_imgs = real_imgs.to(device)
-                    save_images(real_imgs, imgs_dir, '%d_%d_cls_test' % (epoch, i))
-
         for model_index in range(n_cluster):
             init_weights(generator)
             init_weights(discriminator)
@@ -246,6 +240,43 @@ def main():
             gen_cost[model_index].backward()
             gen_train_op[model_index].step()
             gen_params[model_index] = generator.state_dict()
+
+        # test
+        if epoch % 50 == 49:
+            trn_img, trn_target = next(iter(testdatas))
+            trn_img = trn_img.to(device)
+
+            pred_lbl = []
+            iter_num = int(np.floor(trn_img.size(0) / 50))
+            for i in range(0, iter_num):
+                batch = trn_img[50 * i:50 * (i + 1), :]
+                _proba = classifier(batch)
+                _proba = _proba.detach().cpu().numpy()
+                tmp = np.argmax(_proba, axis=1)
+                if len(pred_lbl) == 0:
+                    pred_lbl = tmp
+                else:
+                    pred_lbl = np.hstack((pred_lbl, tmp))
+            purity, nmi, ari = get_performance(trn_target.numpy(), pred_lbl, n_cluster)
+            print("iter={}, purity={:.4f}, nmi={:.4f}, ari={:.4f}".format(
+                epoch, purity, nmi, ari
+            ))
+            logger = open(os.path.join(log_path, "log.txt"), 'a')
+            logger.write(
+                "iter={}, purity={:.4f}, nmi={:.4f}, ari={:.4f}\n".format(
+                    epoch, purity, nmi, ari
+                )
+            )
+            logger.close()
+
+        if epoch % 5000 == 4999:
+            cheek_path = os.path.join(models_dir, 'cheekpoint%d' % epoch)
+            os.makedirs(cheek_path, exist_ok=True)
+            torch.save(classifier.state_dict(), "{}/C_params.pkl".format(cheek_path))
+            for i in range(n_cluster):
+                # save model
+                torch.save(gen_params[i], "{}/G{}_params.pkl".format(cheek_path, i))
+                torch.save(disc_params[i], "{}/D{}_params.pkl".format(cheek_path, i))
 
 
 if __name__ == '__main__':

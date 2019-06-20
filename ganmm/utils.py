@@ -172,3 +172,29 @@ def sample_restdata(rest_data, rest_data_proba, model_index, size):
 # loss = criterion(output, target)
 #
 # print(loss)
+
+
+def get_performance(y_true, y_pred, n_cluster):
+    purity = get_purity(y_true, y_pred, n_cluster)
+    from sklearn.metrics import normalized_mutual_info_score as NMI
+    from sklearn.metrics import adjusted_rand_score as ARI
+    nmi = NMI(y_true, y_pred)
+    ari = ARI(y_true, y_pred)
+    return purity, nmi, ari
+
+
+def get_purity(lbl, pred_lbl, n_cluster=10):
+    avg_acc = 0
+    for i in range(0, n_cluster):
+        c = lbl[pred_lbl == i]
+        total_num = c.shape[0]
+        max_num = 0
+        max_label = -1
+        for j in range(0, n_cluster):
+            tmp = (c == j).sum()
+            if tmp > max_num:
+                max_num = tmp
+                max_label = j
+        avg_acc += max_num
+    avg_acc = avg_acc / (pred_lbl.shape[0] + 0.0)
+    return avg_acc
