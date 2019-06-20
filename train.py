@@ -12,6 +12,7 @@
 try:
     import os
     import argparse
+    import copy
 
     import torch
     import torch.nn as nn
@@ -103,7 +104,6 @@ def main():
     # loss
     gen_cost = [0.0 for i in range(10)]
     disc_cost = [0.0 for i in range(10)]
-    cls_cost = 0.0
 
     # param_dict
     gen_params = []
@@ -115,6 +115,7 @@ def main():
     for i in range(n_cluster):
         gen_train_op.append(torch.optim.Adam(generator.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay))
         disc_train_op.append(torch.optim.Adam(discriminator.parameters(), lr=lr, betas=(b1, b2)))
+
     # classifier_op = torch.optim.SGD(classifier.parameters(), lr=0.001, momentum=0.9)
     classifier_op = torch.optim.Adam(classifier.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
 
@@ -152,7 +153,7 @@ def main():
                     D_gen = discriminator(gen_imgs)
                     D_real = discriminator(real_imgs)
 
-                    if (i % n_skip_iter == 0):
+                    if i % n_skip_iter == 0:
                         gen_cost[model_index] = torch.mean(D_gen)
                         gen_cost[model_index].backward(retain_graph=True)
                         gen_train_op[model_index].step()
@@ -172,9 +173,10 @@ def main():
 
             torch.save(generator.state_dict(), "{}/G{}_params.pkl".format(models_dir, model_index))
             torch.save(discriminator.state_dict(), "{}/D{}_params.pkl".format(models_dir, model_index))
-            gen_params.append(generator.state_dict())
-            disc_params.append(discriminator.state_dict())
+            gen_params.append(copy.deepcopy(generator.state_dict()))
+            disc_params.append(copy.deepcopy(discriminator.state_dict()))
 
+    printP = True
     print('EM-train......')
     for epoch in range(n_epochs):
 
@@ -195,10 +197,10 @@ def main():
             cls_cost = [0.0] * 10
             for model_index in range(n_cluster):
                 classifier.zero_grad()
-                # cls_target = torch.zeros([batch_size, n_cluster])
-                # cls_target[:, model_index] = 1
-                cls_target = torch.zeros(batch_size)
-                cls_target = cls_target + model_index
+                cls_target = torch.zeros([batch_size, n_cluster])
+                cls_target[:, model_index] = 1
+                # cls_target = torch.zeros(batch_size)
+                # cls_target = cls_target + model_index
                 logits = classifier(fake_imgs[model_index])
                 cls_cost[model_index] = torch.mean(softmax_cross_entropy_with_logits(labels=cls_target,
                                                                         logits=logits))
@@ -207,11 +209,10 @@ def main():
                 classifier_op.step()
 
         for model_index in range(n_cluster):
-            init_weights(generator)
-            init_weights(discriminator)
             generator.load_state_dict(gen_params[model_index])
             discriminator.load_state_dict(disc_params[model_index])
 
+            generator.train()
             generator.zero_grad()
             discriminator.zero_grad()
             gen_train_op[model_index].zero_grad()
@@ -226,20 +227,30 @@ def main():
 
             real_imgs = real_imgs.to(device)
 
-            disc_train_op[model_index].zero_grad()
+            if epoch == 2 and printP:
+                save_image(gen_imgs.data[:25],
+                           '%s/gen_img_test.png' % (imgs_dir),
+                           nrow=5, normalize=True)
+                save_image(real_imgs.data[:25],
+                           '%s/real_img_test.png' % (imgs_dir),
+                           nrow=5, normalize=True)
+                printP = False
+
             D_real = discriminator(real_imgs)
-            # train discriminator
-            disc_cost[model_index] = torch.mean(D_real) - torch.mean(D_gen) + \
-                                     calc_gradient_penalty(discriminator, real_imgs, gen_imgs)
-            disc_cost[model_index].backward(retain_graph=True)
-            disc_train_op[model_index].step()
-            disc_params[model_index] = discriminator.state_dict()
 
             # train generator
-            gen_cost[model_index] = torch.mean(D_real)
-            gen_cost[model_index].backward()
+            gen_cost[model_index] = torch.mean(D_gen)
+            gen_cost[model_index].backward(retain_graph=True)
             gen_train_op[model_index].step()
-            gen_params[model_index] = generator.state_dict()
+            gen_params[model_index] = copy.deepcopy(generator.state_dict())
+
+            # train discriminator
+            disc_train_op[model_index].zero_grad()
+            disc_cost[model_index] = torch.mean(D_real) - torch.mean(D_gen) + \
+                                     calc_gradient_penalty(discriminator, real_imgs, gen_imgs)
+            disc_cost[model_index].backward()
+            disc_train_op[model_index].step()
+            disc_params[model_index] = copy.deepcopy(discriminator.state_dict())
 
         # test
         if epoch % 50 == 49:
@@ -268,6 +279,16 @@ def main():
                 )
             )
             logger.close()
+
+        if epoch % 50 == 49:
+            for i in range(n_cluster):
+                # cheek picture
+                generator.load_state_dict(gen_params[i])
+                input = 0.75 * torch.randn(n_sample, latent_dim)
+                gen_imgs = generator(input.to(device))
+                save_image(gen_imgs.data[:25],
+                           '%s/%d_train_gan_%04i.png' % (imgs_dir, epoch, i),
+                           nrow=5, normalize=True)
 
         if epoch % 5000 == 4999:
             cheek_path = os.path.join(models_dir, 'cheekpoint%d' % epoch)
