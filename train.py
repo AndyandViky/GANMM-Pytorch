@@ -94,6 +94,7 @@ def main():
     discriminator.to(device)
     classifier.to(device)
 
+    # dataloader
     dataloaders = get_dataloaders(dataset_path=data_dir, dataset_name=dataset_name,
                                   train=pre_train, n_cluster=n_cluster, batch_size=batch_size)
     testdatas = get_full_data_loader(dataset_path=data_dir, dataset_name=dataset_name,
@@ -208,6 +209,7 @@ def main():
                 cls_cost[model_index].backward(retain_graph=True)
                 classifier_op.step()
 
+        # train GAN
         for model_index in range(n_cluster):
             generator.load_state_dict(gen_params[model_index])
             discriminator.load_state_dict(disc_params[model_index])
@@ -227,14 +229,14 @@ def main():
 
             real_imgs = real_imgs.to(device)
 
-            if epoch == 2 and printP:
-                save_image(gen_imgs.data[:25],
-                           '%s/gen_img_test.png' % (imgs_dir),
-                           nrow=5, normalize=True)
-                save_image(real_imgs.data[:25],
-                           '%s/real_img_test.png' % (imgs_dir),
-                           nrow=5, normalize=True)
-                printP = False
+            # if epoch == 2 and printP:
+            #     save_image(gen_imgs.data[:25],
+            #                '%s/gen_img_test.png' % (imgs_dir),
+            #                nrow=5, normalize=True)
+            #     save_image(real_imgs.data[:25],
+            #                '%s/real_img_test.png' % (imgs_dir),
+            #                nrow=5, normalize=True)
+            #     printP = False
 
             D_real = discriminator(real_imgs)
 
@@ -242,6 +244,7 @@ def main():
             gen_cost[model_index] = torch.mean(D_gen)
             gen_cost[model_index].backward(retain_graph=True)
             gen_train_op[model_index].step()
+            # 深度copy,防止参数被覆盖
             gen_params[model_index] = copy.deepcopy(generator.state_dict())
 
             # train discriminator
@@ -250,6 +253,7 @@ def main():
                                      calc_gradient_penalty(discriminator, real_imgs, gen_imgs)
             disc_cost[model_index].backward()
             disc_train_op[model_index].step()
+            # 深度copy,防止参数被覆盖
             disc_params[model_index] = copy.deepcopy(discriminator.state_dict())
 
         # test

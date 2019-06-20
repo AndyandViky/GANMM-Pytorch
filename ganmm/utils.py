@@ -74,7 +74,15 @@ def calc_gradient_penalty(netD, real_data, generated_data):
 
 
 def get_fake_imgs(netG, n_cluster, n_sample, latent_dim, G_params):
-
+    """
+    根据不同的gen_params生成fake——img
+    :param netG:
+    :param n_cluster:
+    :param n_sample:
+    :param latent_dim:
+    :param G_params:
+    :return:
+    """
     gen_imgs = []
     for i in range(n_cluster):
         init_weights(netG)
@@ -88,6 +96,13 @@ def get_fake_imgs(netG, n_cluster, n_sample, latent_dim, G_params):
 
 
 def softmax_cross_entropy_with_logits(labels, logits, dim=-1):
+    """
+    tf.nn.softmax_cross_entropy_with_logits函数在pytorch下的替代
+    :param labels:
+    :param logits:
+    :param dim:
+    :return:
+    """
 
     # loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
     # return loss_fn(logits, labels.cuda().type(torch.cuda.LongTensor))
@@ -175,6 +190,13 @@ def sample_restdata(rest_data, rest_data_proba, model_index, size):
 
 
 def get_performance(y_true, y_pred, n_cluster):
+    """
+    获取当前轮次的评估指标
+    :param y_true:
+    :param y_pred:
+    :param n_cluster:
+    :return:
+    """
     purity = get_purity(y_true, y_pred, n_cluster)
     from sklearn.metrics import normalized_mutual_info_score as NMI
     from sklearn.metrics import adjusted_rand_score as ARI
