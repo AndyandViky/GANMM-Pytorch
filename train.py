@@ -7,6 +7,9 @@
 @file: train.py
 @time: 2019/6/9 下午8:18
 @desc: train
+from google.colab import drive
+drive.mount('/content/drive/')
+4/bgHximcU5YvPiUE75nKKSp4oZH-LLMO_UTcrP-fzn3GDmAnp2qqZHgQ
 """
 
 try:
@@ -32,7 +35,7 @@ def main():
     global args
     parser = argparse.ArgumentParser(description="Convolutional NN Training Script")
     parser.add_argument("-r", "--run_name", dest="run_name", default="ganmm", help="Name of training run")
-    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=200000, type=int, help="Number of epochs")
+    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=20000, type=int, help="Number of epochs")
     parser.add_argument("-b", "--batch_size", dest="batch_size", default=60, type=int, help="Batch size")
     parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='mnist', choices=dataset_list,
                         help="Dataset name")
@@ -182,13 +185,13 @@ def main():
     for epoch in range(n_epochs):
 
         if epoch < 500:
-            num_choose = 25
+            num_choose = batch_size-30
         elif epoch < 1000:
-            num_choose = 40
+            num_choose = batch_size-15
         elif epoch < 2000:
-            num_choose = 45
+            num_choose = batch_size-8
         else:
-            num_choose = 48
+            num_choose = batch_size-2
 
         # train classifier
         for cls_iter in range(0, 1):
@@ -228,16 +231,6 @@ def main():
                                           num_choose=num_choose, batch_size=batch_size)
 
             real_imgs = real_imgs.to(device)
-
-            # if epoch == 2 and printP:
-            #     save_image(gen_imgs.data[:25],
-            #                '%s/gen_img_test.png' % (imgs_dir),
-            #                nrow=5, normalize=True)
-            #     save_image(real_imgs.data[:25],
-            #                '%s/real_img_test.png' % (imgs_dir),
-            #                nrow=5, normalize=True)
-            #     printP = False
-
             D_real = discriminator(real_imgs)
 
             # train generator
@@ -284,9 +277,9 @@ def main():
             )
             logger.close()
 
-        if epoch % 50 == 49:
+        if epoch % 500 == 499:
             for i in range(n_cluster):
-                # cheek picture
+                # cheek GAN picture
                 generator.load_state_dict(gen_params[i])
                 input = 0.75 * torch.randn(n_sample, latent_dim)
                 gen_imgs = generator(input.to(device))
@@ -294,7 +287,14 @@ def main():
                            '%s/%d_train_gan_%04i.png' % (imgs_dir, epoch, i),
                            nrow=5, normalize=True)
 
-        if epoch % 5000 == 4999:
+                # cheek classifier picture
+                real_imgs = sample_realimages(datasets=fulldataloader, classifier=classifier, model_index=i,
+                                              num_choose=batch_size, batch_size=batch_size)
+                save_image(real_imgs.data[:25],
+                           '%s/%d_train_classifier_%04i.png' % (imgs_dir, epoch, i),
+                           nrow=5, normalize=True)
+
+        if epoch % 3000 == 2999:
             cheek_path = os.path.join(models_dir, 'cheekpoint%d' % epoch)
             os.makedirs(cheek_path, exist_ok=True)
             torch.save(classifier.state_dict(), "{}/C_params.pkl".format(cheek_path))
