@@ -35,7 +35,7 @@ def main():
     global args
     parser = argparse.ArgumentParser(description="Convolutional NN Training Script")
     parser.add_argument("-r", "--run_name", dest="run_name", default="ganmm", help="Name of training run")
-    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=20000, type=int, help="Number of epochs")
+    parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=100000, type=int, help="Number of epochs")
     parser.add_argument("-b", "--batch_size", dest="batch_size", default=60, type=int, help="Batch size")
     parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='mnist', choices=dataset_list,
                         help="Dataset name")
@@ -77,7 +77,7 @@ def main():
     b1 = 0.5
     b2 = 0.9  # 99
     decay = 2.5 * 1e-5
-    load_pre_params = True
+    load_pre_params = True # 该变量表示获取gan预训练的参数,或者取训练了一部分的参数
 
     # test detail var
     test_batch_size = 2500
@@ -93,9 +93,9 @@ def main():
     #     discriminator.cuda()
     #     classifier.cuda()
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    generator.to(device)
-    discriminator.to(device)
-    classifier.to(device)
+    # generator.to(device)
+    # discriminator.to(device)
+    # classifier.to(device)
 
     # dataloader
     dataloaders = get_dataloaders(dataset_path=data_dir, dataset_name=dataset_name,
@@ -126,14 +126,22 @@ def main():
     # ==== pretrain ====
     if load_pre_params:
         # 加载预先训练好的参数
-        for i in range(n_cluster):
-            if os.path.exists("{}/G{}_params.pkl".format(models_dir, i)) \
-                    and os.path.exists("{}/D{}_params.pkl".format(models_dir, i)):
-                gen_params.append(torch.load("{}/G{}_params.pkl".format(models_dir, i)))
-                disc_params.append(torch.load("{}/D{}_params.pkl".format(models_dir, i)))
-            else:
-                print('pre-train-params is not exists')
-                return
+        if os.path.exists("{}/cheekpoint17999".format(models_dir)):
+            pre_model_path = os.path.join(models_dir, 'cheekpoint17999')
+            classifier.load_state_dict(torch.load("{}/C_params.pkl".format(pre_model_path)))
+            for i in range(n_cluster):
+                gen_params.append(torch.load("{}/G{}_params.pkl".format(pre_model_path, i)))
+                disc_params.append(torch.load("{}/D{}_params.pkl".format(pre_model_path, i)))
+            print('loading cheekpoint 17999 params......')
+        else:
+            for i in range(n_cluster):
+                if os.path.exists("{}/G{}_params.pkl".format(models_dir, i)) \
+                and os.path.exists("{}/D{}_params.pkl".format(models_dir, i)):
+                    gen_params.append(torch.load("{}/G{}_params.pkl".format(models_dir, i)))
+                    disc_params.append(torch.load("{}/D{}_params.pkl".format(models_dir, i)))
+                else:
+                    print('pre-train-params is not exists')
+                    return
     else:
         print('pretrain......')
 
@@ -180,9 +188,8 @@ def main():
             gen_params.append(copy.deepcopy(generator.state_dict()))
             disc_params.append(copy.deepcopy(discriminator.state_dict()))
 
-    printP = True
     print('EM-train......')
-    for epoch in range(n_epochs):
+    for epoch in range(20000, n_epochs):
 
         if epoch < 500:
             num_choose = batch_size-30
@@ -277,7 +284,7 @@ def main():
             )
             logger.close()
 
-        if epoch % 500 == 499:
+        if epoch % 3000 == 2999:
             for i in range(n_cluster):
                 # cheek GAN picture
                 generator.load_state_dict(gen_params[i])
@@ -294,7 +301,7 @@ def main():
                            '%s/%d_train_classifier_%04i.png' % (imgs_dir, epoch, i),
                            nrow=5, normalize=True)
 
-        if epoch % 3000 == 2999:
+        if epoch % 5000 == 4999:
             cheek_path = os.path.join(models_dir, 'cheekpoint%d' % epoch)
             os.makedirs(cheek_path, exist_ok=True)
             torch.save(classifier.state_dict(), "{}/C_params.pkl".format(cheek_path))
