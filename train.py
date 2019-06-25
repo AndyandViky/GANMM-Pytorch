@@ -9,7 +9,6 @@
 @desc: train
 from google.colab import drive
 drive.mount('/content/drive/')
-4/bgHximcU5YvPiUE75nKKSp4oZH-LLMO_UTcrP-fzn3GDmAnp2qqZHgQ
 """
 
 try:
@@ -93,9 +92,9 @@ def main():
     #     discriminator.cuda()
     #     classifier.cuda()
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    # generator.to(device)
-    # discriminator.to(device)
-    # classifier.to(device)
+    generator.to(device)
+    discriminator.to(device)
+    classifier.to(device)
 
     # dataloader
     dataloaders = get_dataloaders(dataset_path=data_dir, dataset_name=dataset_name,
@@ -121,12 +120,13 @@ def main():
         disc_train_op.append(torch.optim.Adam(discriminator.parameters(), lr=lr, betas=(b1, b2)))
 
     # classifier_op = torch.optim.SGD(classifier.parameters(), lr=0.001, momentum=0.9)
-    classifier_op = torch.optim.Adam(classifier.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
+    # classifier_op = torch.optim.RMSprop(classifier.parameters(), lr=0.01, alpha=0.9)
+    classifier_op = torch.optim.Adam(classifier.parameters(), lr=lr, betas=(b1, b2))
 
     # ==== pretrain ====
     if load_pre_params:
         # 加载预先训练好的参数
-        if os.path.exists("{}/cheekpoint17999".format(models_dir)):
+        if os.path.exists("{}/cheekpoint10000".format(models_dir)):
             pre_model_path = os.path.join(models_dir, 'cheekpoint17999')
             classifier.load_state_dict(torch.load("{}/C_params.pkl".format(pre_model_path)))
             for i in range(n_cluster):
@@ -189,7 +189,7 @@ def main():
             disc_params.append(copy.deepcopy(discriminator.state_dict()))
 
     print('EM-train......')
-    for epoch in range(20000, n_epochs):
+    for epoch in range(0, n_epochs):
 
         if epoch < 500:
             num_choose = batch_size-30
@@ -257,7 +257,7 @@ def main():
             disc_params[model_index] = copy.deepcopy(discriminator.state_dict())
 
         # test
-        if epoch % 50 == 49:
+        if epoch % 100 == 99:
             trn_img, trn_target = next(iter(testdatas))
             trn_img = trn_img.to(device)
 
